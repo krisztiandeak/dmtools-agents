@@ -572,6 +572,47 @@ suite('smProvider', function () {
         assert.equal(merged.state, 'MERGED');
     });
 
+    test('gitlab: prStatus judges only the head commit\'s pipelines (stale cancelled/failed runs are ignored)', function () {
+        var mr = { state: 'opened', sha: 'head1', merge_status: 'can_be_merged', has_conflicts: false };
+        var staleCancelled = loadProvider('gitlab', {
+            gitlab_get_mr: function () { return mr; },
+            gitlab_get_mr_pipelines: function () {
+                return [{ sha: 'head1', status: 'success' }, { sha: 'old0', status: 'canceled' }];
+            }
+        }).prStatus(13);
+        assert.equal(staleCancelled.checkConclusion, 'green');   // the old commit's cancel does not hold the head
+
+        var staleFailed = loadProvider('gitlab', {
+            gitlab_get_mr: function () { return mr; },
+            gitlab_get_mr_pipelines: function () {
+                return [{ sha: 'head1', status: 'success' }, { sha: 'old0', status: 'failed' }];
+            }
+        }).prStatus(13);
+        assert.equal(staleFailed.checkConclusion, 'green');
+
+        var headRed = loadProvider('gitlab', {
+            gitlab_get_mr: function () { return mr; },
+            gitlab_get_mr_pipelines: function () {
+                return [{ sha: 'head1', status: 'failed' }, { sha: 'old0', status: 'success' }];
+            }
+        }).prStatus(13);
+        assert.equal(headRed.checkConclusion, 'red');           // a green old commit does not hide a red head
+    });
+
+    test('gitlab: prStatus — CI exists but nothing ran on the new head yet reads pending, not green', function () {
+        var p = loadProvider('gitlab', {
+            gitlab_get_mr: function () { return { state: 'opened', sha: 'new2', merge_status: 'can_be_merged', has_conflicts: false }; },
+            gitlab_get_mr_pipelines: function () { return [{ sha: 'old0', status: 'success' }]; }
+        });
+        assert.equal(p.prStatus(13).checkConclusion, 'pending');
+
+        var noCi = loadProvider('gitlab', {
+            gitlab_get_mr: function () { return { state: 'opened', sha: 'new2', merge_status: 'can_be_merged', has_conflicts: false }; },
+            gitlab_get_mr_pipelines: function () { return []; }
+        });
+        assert.equal(noCi.prStatus(13).checkConclusion, 'none');  // a project without CI is unchanged
+    });
+
     test('gitlab: activeMachineRuns is conservative on API pipelines', function () {
         var p = loadProvider('gitlab', {
             gitlab_list_pipeline_runs: function () {

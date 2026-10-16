@@ -831,8 +831,16 @@ function gitlabProvider(cfg) {
             var mr = gitlab_get_mr({ workspace: owner, repository: repo, pullRequestId: String(mrNumber) }) || {};
             // Pipelines for the MR head — the CI verdict.
             var pipes = (gitlab_get_mr_pipelines({ workspace: owner, repository: repo, pullRequestId: String(mrNumber) }) || {});
-            var list = pipes.pipelines || pipes || [];
+            var all = pipes.pipelines || pipes || [];
+            // The MR's pipeline list spans every commit it ever had: a stale
+            // cancelled/failed run from an older commit must not hold the
+            // current head at pending/red. Only the head's pipelines are the
+            // verdict; CI that exists but has not started on the head yet
+            // is "no verdict yet" (pending), never green off an old commit.
+            var headSha = mr.sha || (mr.diff_refs && mr.diff_refs.head_sha) || '';
+            var list = headSha ? all.filter(function (p) { return p.sha === headSha; }) : all;
             var red = false, pending = false, any = false, cancelled = 0;
+            if (all.length > 0 && list.length === 0) { any = true; pending = true; }
             list.forEach(function (p) {
                 any = true;
                 var st = p.status || p.detailed_status;
