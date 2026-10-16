@@ -854,7 +854,8 @@ function gitlabProvider(cfg) {
             else if (mr.has_conflicts) mergeState = 'BEHIND'; // conflicts ⇒ needs rebase
             else if (mr.merge_status === 'checking') mergeState = 'UNKNOWN';
             return {
-                state: mr.state ? String(mr.state).toUpperCase() : 'OPEN',
+                number: mrNumber,
+                state: glMrState(mr.state),
                 checkConclusion: any ? (red ? 'red' : (pending ? 'pending' : 'green')) : 'none',
                 mergeState: mergeState,
                 mergeable: mr.merge_status === 'can_be_merged' && !mr.has_conflicts,
@@ -922,6 +923,15 @@ function gitlabProvider(cfg) {
  * @param {Object} config - { scm: { provider }, repository: { owner, repo } }
  * @returns {Object} provider implementing the contract above
  */
+// GitLab MR states (opened | closed | merged | locked) → the provider
+// contract's OPEN | CLOSED | MERGED ('opened' is not 'OPEN', so a plain
+// toUpperCase() left every GitLab MR looking non-open to the SM).
+function glMrState(state) {
+    var s = String(state || 'opened').toLowerCase();
+    if (s === 'opened') return 'OPEN';
+    return s.toUpperCase();
+}
+
 function createSmProvider(config) {
     var cfg = config || {};
     var provider = (cfg.scm && cfg.scm.provider) || 'github';
