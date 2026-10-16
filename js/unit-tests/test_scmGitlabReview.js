@@ -65,4 +65,25 @@ suite('scm gitlab submitReview', function () {
         assert.equal(calls.length, 1);
         assert.equal(calls[0].text, 'FYI note.');
     });
+
+    test('fetchDiscussions keeps only resolvable review threads (no system or plain notes)', function () {
+        var scm = loadGitlabScm({
+            gitlab_get_mr_discussions: function () {
+                return [
+                    { id: 'd1', individual_note: true, notes: [{ system: true, body: 'added 1 commit' }] },
+                    { id: 'd2', individual_note: true, notes: [{ system: false, body: '## Automated Code Review' }] },
+                    { id: 'd3', individual_note: false, resolved: false,
+                      notes: [{ system: false, body: 'Handle the error', position: { new_path: 'src/a.rs', new_line: 7 } }] },
+                    { id: 'd4', individual_note: false, resolved: true,
+                      notes: [{ system: false, body: 'Done already', position: { new_path: 'src/b.rs', new_line: 2 } }] }
+                ];
+            }
+        });
+        var threads = scm.fetchDiscussions(8).rawThreads.threads;
+        assert.equal(threads.length, 2);
+        assert.equal(threads[0].threadId, 'd3');
+        assert.equal(threads[0].resolved, false);
+        assert.equal(threads[1].threadId, 'd4');
+        assert.equal(threads[1].resolved, true);
+    });
 });

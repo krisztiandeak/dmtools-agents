@@ -810,6 +810,11 @@ function _createGitLabProvider(workspace, repository) {
             discussions.forEach(function(thread) {
                 var notes = thread.notes || [];
                 var root = notes[0] || {};
+                // GitLab lists system notes ("added 1 commit", "mentioned in
+                // issue #N") and plain top-level MR comments as discussions
+                // too. Neither is a review thread: not resolvable, so they
+                // would read as open forever.
+                if (root.system === true || thread.individual_note === true) return;
                 var body = (root.body || '').trim();
                 var pos = root.position || {};
                 var resolved = thread.resolved === true || root.resolved === true;

@@ -557,6 +557,21 @@ suite('smProvider', function () {
             'a real failure is not laundered by a neighbouring cancel');
     });
 
+    test('gitlab: prStatus reports OPEN/MERGED state and the MR number', function () {
+        var open = loadProvider('gitlab', {
+            gitlab_get_mr: function () { return { state: 'opened', merge_status: 'can_be_merged', has_conflicts: false }; },
+            gitlab_get_mr_pipelines: function () { return [{ status: 'success' }]; }
+        }).prStatus(4);
+        assert.equal(open.state, 'OPEN');         // 'opened' must not leak through as 'OPENED'
+        assert.equal(open.number, 4);
+
+        var merged = loadProvider('gitlab', {
+            gitlab_get_mr: function () { return { state: 'merged' }; },
+            gitlab_get_mr_pipelines: function () { return []; }
+        }).prStatus(5);
+        assert.equal(merged.state, 'MERGED');
+    });
+
     test('gitlab: activeMachineRuns is conservative on API pipelines', function () {
         var p = loadProvider('gitlab', {
             gitlab_list_pipeline_runs: function () {
